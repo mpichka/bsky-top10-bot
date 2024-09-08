@@ -1,0 +1,21 @@
+CREATE TABLE "users" (
+  "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+  "created_at" DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  "updated_at" DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  "did" TEXT UNIQUE NOT NULL,
+  "handle" TEXT NOT NULL,
+  "display_name" TEXT NULL
+);
+
+CREATE TRIGGER users_updated_at
+AFTER
+UPDATE
+  ON "users" BEGIN
+UPDATE
+  "users"
+SET
+  "updated_at" = CURRENT_TIMESTAMP
+WHERE
+  "id" = NEW.id;
+
+END;
