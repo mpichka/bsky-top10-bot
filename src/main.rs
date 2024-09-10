@@ -11,7 +11,7 @@ mod utils;
 #[tokio::main]
 async fn main() -> Result<(), JobSchedulerError> {
     println!("App is running");
-    
+
     dotenv().ok();
 
     database::embeded_migrations::migrate();

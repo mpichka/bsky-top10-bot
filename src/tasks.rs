@@ -1,7 +1,6 @@
-use std::vec;
-
 use chrono::{DateTime, Duration, Utc};
 use futures::future::join_all;
+use std::vec;
 use tokio::task;
 
 const START_TIME: i64 = 24;
@@ -9,7 +8,7 @@ const END_TIME: i64 = 25;
 
 use crate::{
     database::{
-        models::{NewPost, NewUser, Post, User},
+        models::{NewPost, NewUser, User},
         queries,
     },
     services::bsky::{
@@ -210,7 +209,6 @@ async fn sync_latest_author_posts(
 
 pub async fn post_top_ten(bsky: &Bsky) {
     let bench = Bench::start("Posting thread");
-    const MAX_MESSAGE_LENGTH: usize = 300;
     let posts_with_users = match queries::get_top_ten_posts_with_users() {
         Ok(res) => Some(res),
         Err(error) => {
@@ -234,52 +232,24 @@ pub async fn post_top_ten(bsky: &Bsky) {
         return;
     }
 
-    let users: Vec<User> = posts_with_users.iter().map(|v| v.1.clone()).collect();
-
-    let mut message = format!("#Топ10 {}\n\n", Utc::now().format("%d.%m.%Y"));
-
-    let mut place = 1;
-    for user in users.iter() {
-        message += format!("{}. @{}\n", place, user.handle).as_str();
-        place += 1;
-    }
-    if message.len() > MAX_MESSAGE_LENGTH {
-        message = format!("#Топ10 {}", Utc::now().format("%d.%m.%Y"));
-    }
-
-    let facets = parse_facets_with_users(&message, &users);
-
-    let root_post = bsky
-        .create_post(message, Some(facets), None, None)
-        .await
-        .unwrap();
-
-    let mut previous_reply = PostRef {
-        uri: root_post.uri.clone(),
-        cid: root_post.cid.clone(),
-    };
+    let mut root_post: Option<PostRef> = None;
+    let mut previous_post: PostRef;
+    let mut previous_reply: Option<Reply> = None;
 
     let mut place = 1;
     for (post, user) in posts_with_users.iter() {
         let display_name = user.display_name.clone().unwrap_or_default();
-        let message = if display_name.is_empty() {
-            format!("Топ {}: {}", place, user.handle)
-        } else {
-            format!("Топ {}: {} {}", place, display_name, user.handle)
-        };
+        let message = format!(
+            "#Топ10\n{} місце: {}",
+            place,
+            if display_name.is_empty() {
+                user.handle.clone()
+            } else {
+                display_name
+            }
+        );
 
         let facets = parse_facets_with_users(&message, &vec![user.to_owned()]);
-
-        let reply = Reply {
-            root: PostRef {
-                uri: root_post.uri.clone(),
-                cid: root_post.cid.clone(),
-            },
-            parent: PostRef {
-                uri: previous_reply.uri,
-                cid: previous_reply.cid,
-            },
-        };
 
         let embed = Embed {
             embed_type: EmbedType::Record,
@@ -289,10 +259,27 @@ pub async fn post_top_ten(bsky: &Bsky) {
             },
         };
 
-        previous_reply = bsky
-            .create_post(message, Some(facets), Some(reply), Some(embed))
+        previous_post = bsky
+            .create_post(message, Some(facets), previous_reply.clone(), Some(embed))
             .await
             .unwrap();
+
+        if root_post.is_none() {
+            root_post = Some(previous_post);
+        } else {
+            let root_post = root_post.clone().unwrap();
+
+            previous_reply = Some(Reply {
+                root: PostRef {
+                    uri: root_post.uri.clone(),
+                    cid: root_post.cid.clone(),
+                },
+                parent: PostRef {
+                    uri: previous_post.uri,
+                    cid: previous_post.cid,
+                },
+            });
+        }
 
         place += 1;
     }

@@ -234,13 +234,13 @@ pub struct NewRecord {
     pub embed: Option<Embed>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct Reply {
     pub root: PostRef,
     pub parent: PostRef,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct PostRef {
     pub uri: String,
     pub cid: String,
