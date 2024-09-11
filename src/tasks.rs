@@ -15,7 +15,7 @@ use crate::{
         facets::parse_facets_with_users,
         structs::{
             Embed, EmbedType, FeedFilter, FeedListOptions, FollowersListOptions, PostRef,
-            ReasonType, Reply,
+            ReasonType,
         },
         Bsky,
     },
@@ -232,16 +232,10 @@ pub async fn post_top_ten(bsky: &Bsky) {
         return;
     }
 
-    let mut root_post: Option<PostRef> = None;
-    let mut previous_post: PostRef;
-    let mut previous_reply: Option<Reply> = None;
-
-    let mut place = 1;
     for (post, user) in posts_with_users.iter() {
         let display_name = user.display_name.clone().unwrap_or_default();
         let message = format!(
-            "#Топ10\n{} місце: {}",
-            place,
+            "#Топ10 {}",
             if display_name.is_empty() {
                 user.handle.clone()
             } else {
@@ -259,29 +253,13 @@ pub async fn post_top_ten(bsky: &Bsky) {
             },
         };
 
-        previous_post = bsky
-            .create_post(message, Some(facets), previous_reply.clone(), Some(embed))
+        let _ = bsky
+            .create_post(message, Some(facets), None, Some(embed))
             .await
             .unwrap();
 
-        if root_post.is_none() {
-            root_post = Some(previous_post);
-        } else {
-            let root_post = root_post.clone().unwrap();
-
-            previous_reply = Some(Reply {
-                root: PostRef {
-                    uri: root_post.uri.clone(),
-                    cid: root_post.cid.clone(),
-                },
-                parent: PostRef {
-                    uri: previous_post.uri,
-                    cid: previous_post.cid,
-                },
-            });
-        }
-
-        place += 1;
+        // 5 minute delay
+        tokio::time::sleep(std::time::Duration::from_secs(300)).await;
     }
     bench.end();
 
